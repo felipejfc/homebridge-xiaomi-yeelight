@@ -1,15 +1,15 @@
 {
   "displayName": "Xiaomi Yeelight Support",
-  "name": "homebridge-xiaomi-yeelight",
-  "version": "1.1.5",
+  "name": "homebridge-xiaomi-yeelight-x",
+  "version": "1.1.8",
   "description": "Control Xiaomi branded Yeelight in HomeBridge",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/viestursr/homebridge-xiaomi-yeelight.git "
+    "url": "https://github.com/baukita/homebridge-xiaomi-yeelight.git "
   },
   "bugs": {
-    "url": "https://github.com/viestursr/homebridge-xiaomi-yeelight/issues"
+    "url": "https://github.com/baukita/homebridge-xiaomi-yeelight/issues"
   },
   "engines": {
     "node": ">=14.18.1",
@@ -26,7 +26,7 @@
     "homebridge-plugin"
   ],
   "dependencies": {
-    "miio-yeelight22": "^0.15.8"
+    "miio-yeelight-x": "^0.15.10"
   },
   "devDependencies": {
     "@types/node": "^16.10.9",

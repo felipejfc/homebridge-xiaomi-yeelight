@@ -1,7 +1,7 @@
 import { Service, PlatformAccessory, CharacteristicValue } from "homebridge";
 
 import { XiaomiYeelightPlatform } from "./platform";
-import miio from "miio-yeelight22";
+import miio from "miio-yeelight-x";
 
 /**
  * Platform Accessory
