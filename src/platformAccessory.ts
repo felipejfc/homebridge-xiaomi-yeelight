@@ -13,8 +13,13 @@ export class Light {
   private connection: miio;
 
   private state = {
-    Hue: 0,
-    Saturation: 0,
+    hue: 0,
+    saturation: 0,
+  };
+
+  private configs = {
+    minTemp: 154,
+    maxTemp: 370,
   };
 
   constructor(
@@ -33,28 +38,63 @@ export class Light {
         if (this.connection.matches("cap:colorable", "cap:color:temperature")) {
           this.service
             .getCharacteristic(this.platform.Characteristic.ColorTemperature)
-            .onSet(this.setColorTemperature.bind(this))
-            .onGet(this.getColorTemperature.bind(this));
+            .setProps({
+              maxValue: this.configs.maxTemp,
+              minValue: this.configs.minTemp,
+            })
+            .onSet(this.setColorTemperature.bind(this));
+
+          this.connection.on("colorChanged", (colorTmp) => {
+            if (
+              colorTmp.model !== "temperature" &&
+              colorTmp.model !== "mired"
+            ) {
+              return;
+            }
+
+            this.service
+              .getCharacteristic(this.platform.Characteristic.ColorTemperature)
+              .updateValue(colorTmp.mired.value);
+
+            this.updateHueAndSaturation(colorTmp);
+          });
         }
 
         if (this.connection.matches("cap:colorable", "cap:color:full")) {
           this.service
             .getCharacteristic(this.platform.Characteristic.Hue)
-            .onSet(this.setHue.bind(this))
-            .onGet(this.getHue.bind(this));
+            .onSet(this.setHue.bind(this));
 
           this.service
             .getCharacteristic(this.platform.Characteristic.Saturation)
-            .onSet(this.setSaturation.bind(this))
-            .onGet(this.getSaturation.bind(this));
+            .onSet(this.setSaturation.bind(this));
+
+          this.connection.on("colorChanged", (color) => {
+            if (color.model === "temperature" || color.model === "mired") {
+              return;
+            }
+
+            this.updateHueAndSaturation(color);
+          });
         }
 
         if (this.connection.matches("cap:dimmable", "cap:brightness")) {
           this.service
             .getCharacteristic(this.platform.Characteristic.Brightness)
-            .onSet(this.setBrightness.bind(this))
-            .onGet(this.getBrightness.bind(this));
+            .onSet(this.setBrightness.bind(this));
+
+          this.connection.on("brightnessChanged", (bright) =>
+            this.service
+              .getCharacteristic(this.platform.Characteristic.Brightness)
+              .updateValue(bright)
+          );
         }
+
+        this.connection.on("powerChanged", (power) =>
+          this.service
+            .getCharacteristic(this.platform.Characteristic.On)
+            .updateValue(power)
+        );
       })
       .catch((e) => this.platform.log.error(e));
 
@@ -75,8 +115,7 @@ export class Light {
 
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.setOn.bind(this))
-      .onGet(this.getOn.bind(this));
+      .onSet(this.setOn.bind(this));
   }
 
   get debugLogging(): boolean {
@@ -90,25 +129,11 @@ export class Light {
 
     try {
       await this.connection.setPower(value);
-
       if (this.debugLogging) {
         this.platform.log.info("power set successfully");
       }
     } catch (e: any) {
       this.platform.log.error(e);
-    }
-  }
-
-  async getOn(): Promise<CharacteristicValue> {
-    try {
-      const isOn = await this.connection.power();
-
-      return isOn;
-    } catch (e: any) {
-      this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
-      );
     }
   }
 
@@ -119,24 +144,11 @@ export class Light {
 
     try {
       await this.connection.setBrightness(value);
-
       if (this.debugLogging) {
         this.platform.log.info("brightness set successfully");
       }
     } catch (e: any) {
       this.platform.log.error(e);
-    }
-  }
-
-  async getBrightness(): Promise<CharacteristicValue> {
-    try {
-      const brightness = await this.connection.brightness();
-      return brightness;
-    } catch (e: any) {
-      this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
-      );
     }
   }
 
@@ -163,78 +175,59 @@ export class Light {
     }
   }
 
-  async getColorTemperature(): Promise<CharacteristicValue> {
-    try {
-      const color = await this.connection.color();
-      let temp = color.temperature.mired.value;
-      temp = Math.min(Math.max(temp, 140), 500);
-      return temp;
-    } catch (e: any) {
-      this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
-      );
-    }
-  }
-
   async setHue(value: CharacteristicValue) {
-    this.state.Hue = value as number;
+    const oldHue = this.state.hue;
+    this.state.hue = value as number;
     if (this.debugLogging) {
       this.platform.log.info("setting hue to", value);
     }
 
     try {
       await this.connection.color(
-        `hsl(${this.state.Hue}, ${this.state.Saturation}%, 100%)`
+        `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`
       );
 
       if (this.debugLogging) {
         this.platform.log.info("hue set successfully");
       }
     } catch (e: any) {
+      this.state.hue = oldHue;
       this.platform.log.error(e);
-    }
-  }
-
-  async getHue(): Promise<CharacteristicValue> {
-    try {
-      const color = await this.connection.color();
-      return color.hsl.hue;
-    } catch (e: any) {
-      this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
-      );
     }
   }
 
   async setSaturation(value: CharacteristicValue) {
-    this.state.Saturation = value as number;
+    const oldSat = this.state.saturation;
+    this.state.saturation = value as number;
     if (this.debugLogging) {
       this.platform.log.info("setting saturation to", value);
     }
 
     try {
       await this.connection.color(
-        `hsl(${this.state.Hue}, ${this.state.Saturation}%, 100%)`
+        `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`
       );
+
       if (this.debugLogging) {
         this.platform.log.info("saturation set successfully");
       }
     } catch (e: any) {
+      this.state.saturation = oldSat;
       this.platform.log.error(e);
     }
   }
 
-  async getSaturation(): Promise<CharacteristicValue> {
-    try {
-      const color = await this.connection.color();
-      return color.hsl.saturation;
-    } catch (e: any) {
-      this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
-      );
-    }
+  private updateHueAndSaturation(color) {
+    color = color.hsv;
+
+    this.state.hue = color.hue;
+    this.service
+      .getCharacteristic(this.platform.Characteristic.Hue)
+      .updateValue(color.hue);
+
+    this.state.saturation = color.saturation;
+    this.service
+      .getCharacteristic(this.platform.Characteristic.Saturation)
+      .updateValue(color.saturation);
   }
 }
