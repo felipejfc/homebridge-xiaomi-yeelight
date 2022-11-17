@@ -1,7 +1,7 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { Service, PlatformAccessory, CharacteristicValue } from "homebridge";
 
-import { XiaomiYeelightPlatform } from './platform';
-import miio from 'miio-yeelight22';
+import { XiaomiYeelightPlatform } from "./platform";
+import miio from "miio-yeelight22";
 
 /**
  * Platform Accessory
@@ -13,66 +13,86 @@ export class Light {
   private connection: miio;
 
   private state = {
-    On: false,
-    Brightness: 100,
-    ColorTemperature: 0,
+    Hue: 0,
+    Saturation: 0,
   };
 
   constructor(
     private readonly platform: XiaomiYeelightPlatform,
-    private readonly accessory: PlatformAccessory,
+    private readonly accessory: PlatformAccessory
   ) {
-
-    miio.device({ address: accessory.context.device.ipAddress, token: accessory.context.device.token })
-      .then(device => {
-        this.connection = device;
-        this.platform.log.info('opened connection to device', device);
+    miio
+      .device({
+        address: accessory.context.device.ipAddress,
+        token: accessory.context.device.token,
       })
-      .catch(e => this.platform.log.error(e));
+      .then((device) => {
+        this.connection = device;
+        this.platform.log.info("opened connection to device", device);
+
+        if (this.connection.matches("cap:colorable", "cap:color:temperature")) {
+          this.service
+            .getCharacteristic(this.platform.Characteristic.ColorTemperature)
+            .onSet(this.setColorTemperature.bind(this))
+            .onGet(this.getColorTemperature.bind(this));
+        }
+
+        if (this.connection.matches("cap:colorable", "cap:color:full")) {
+          this.service
+            .getCharacteristic(this.platform.Characteristic.Hue)
+            .onSet(this.setHue.bind(this))
+            .onGet(this.getHue.bind(this));
+
+          this.service
+            .getCharacteristic(this.platform.Characteristic.Saturation)
+            .onSet(this.setSaturation.bind(this))
+            .onGet(this.getSaturation.bind(this));
+        }
+
+        if (this.connection.matches("cap:dimmable", "cap:brightness")) {
+          this.service
+            .getCharacteristic(this.platform.Characteristic.Brightness)
+            .onSet(this.setBrightness.bind(this))
+            .onGet(this.getBrightness.bind(this));
+        }
+      })
+      .catch((e) => this.platform.log.error(e));
 
     // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Xiaomi')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Yeelight');
+    this.accessory
+      .getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, "Xiaomi")
+      .setCharacteristic(this.platform.Characteristic.Model, "Yeelight");
 
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+    this.service =
+      this.accessory.getService(this.platform.Service.Lightbulb) ||
+      this.accessory.addService(this.platform.Service.Lightbulb);
 
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.name);
+    this.service.setCharacteristic(
+      this.platform.Characteristic.Name,
+      accessory.context.device.name
+    );
 
-    this.service.getCharacteristic(this.platform.Characteristic.On)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.setOn.bind(this))
       .onGet(this.getOn.bind(this));
-
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .onSet(this.setBrightness.bind(this))
-      .onGet(this.getBrightness.bind(this));
-
-    this.service.getCharacteristic(this.platform.Characteristic.ColorTemperature)
-      .onSet(this.setColorTemperature.bind(this))
-      .onGet(this.getColorTemperature.bind(this));
-
   }
 
-  isDebugLogging(): boolean {
+  get debugLogging(): boolean {
     return this.platform.config.debugLogging;
   }
 
-  convertColorTemp(value: number): string {
-    return Math.round(1000000 / value).toString();
-  }
-
   async setOn(value: CharacteristicValue) {
-    this.state.On = value as boolean;
-
-    if (this.isDebugLogging()) {
-      this.platform.log.info('setting power to', value);
+    if (this.debugLogging) {
+      this.platform.log.info("setting power to", value);
     }
 
     try {
       await this.connection.setPower(value);
 
-      if (this.isDebugLogging()) {
-        this.platform.log.info('power set successfully');
+      if (this.debugLogging) {
+        this.platform.log.info("power set successfully");
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -86,22 +106,22 @@ export class Light {
       return isOn;
     } catch (e: any) {
       this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+      );
     }
   }
 
   async setBrightness(value: CharacteristicValue) {
-    this.state.Brightness = value as number;
-
-    if (this.isDebugLogging()) {
-      this.platform.log.info('setting brightness to', value);
+    if (this.debugLogging) {
+      this.platform.log.info("setting brightness to", value);
     }
 
     try {
       await this.connection.setBrightness(value);
 
-      if (this.isDebugLogging()) {
-        this.platform.log.info('brightness set successfully');
+      if (this.debugLogging) {
+        this.platform.log.info("brightness set successfully");
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -111,33 +131,32 @@ export class Light {
   async getBrightness(): Promise<CharacteristicValue> {
     try {
       const brightness = await this.connection.brightness();
-
       return brightness;
     } catch (e: any) {
       this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+      );
     }
   }
 
   async setColorTemperature(value: CharacteristicValue) {
-    this.state.ColorTemperature = value as number;
+    const kelvin = `${Math.round(1000000 / (value as number))}K`;
 
-    // max brightness for light model ceiling22
-    if (value > 384) {
-      value = 384;
-    } else if (value < 164) {
-      value = 164;
-    }
-
-    if (this.isDebugLogging()) {
-      this.platform.log.info('setting color temp to', value, 'in kelvin:', this.convertColorTemp(value as number));
+    if (this.debugLogging) {
+      this.platform.log.info(
+        "setting color temp:",
+        "mired =",
+        value,
+        "kelvin =",
+        kelvin
+      );
     }
 
     try {
-      await this.connection.color(`${this.convertColorTemp(value as number)}k`);
-
-      if (this.isDebugLogging()) {
-        this.platform.log.info('color temp set successfully');
+      await this.connection.color(kelvin);
+      if (this.debugLogging) {
+        this.platform.log.info("color temp set successfully");
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -146,13 +165,76 @@ export class Light {
 
   async getColorTemperature(): Promise<CharacteristicValue> {
     try {
-      let colorTemp = await this.connection.color();
-      colorTemp = this.convertColorTemp(colorTemp.values[0]);
-
-      return colorTemp;
+      const color = await this.connection.color();
+      let temp = color.temperature.mired.value;
+      temp = Math.min(Math.max(temp, 140), 500);
+      return temp;
     } catch (e: any) {
       this.platform.log.error(e);
-      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+      );
+    }
+  }
+
+  async setHue(value: CharacteristicValue) {
+    this.state.Hue = value as number;
+    if (this.debugLogging) {
+      this.platform.log.info("setting hue to", value);
+    }
+
+    try {
+      await this.connection.color(
+        `hsl(${this.state.Hue}, ${this.state.Saturation}%, 100%)`
+      );
+
+      if (this.debugLogging) {
+        this.platform.log.info("hue set successfully");
+      }
+    } catch (e: any) {
+      this.platform.log.error(e);
+    }
+  }
+
+  async getHue(): Promise<CharacteristicValue> {
+    try {
+      const color = await this.connection.color();
+      return color.hsl.hue;
+    } catch (e: any) {
+      this.platform.log.error(e);
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+      );
+    }
+  }
+
+  async setSaturation(value: CharacteristicValue) {
+    this.state.Saturation = value as number;
+    if (this.debugLogging) {
+      this.platform.log.info("setting saturation to", value);
+    }
+
+    try {
+      await this.connection.color(
+        `hsl(${this.state.Hue}, ${this.state.Saturation}%, 100%)`
+      );
+      if (this.debugLogging) {
+        this.platform.log.info("saturation set successfully");
+      }
+    } catch (e: any) {
+      this.platform.log.error(e);
+    }
+  }
+
+  async getSaturation(): Promise<CharacteristicValue> {
+    try {
+      const color = await this.connection.color();
+      return color.hsl.saturation;
+    } catch (e: any) {
+      this.platform.log.error(e);
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+      );
     }
   }
 }
