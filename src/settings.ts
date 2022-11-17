@@ -6,4 +6,4 @@ export const PLATFORM_NAME = "XiaomiYeelightSupport";
 /**
  * This must match the name of your plugin as defined the package.json
  */
-export const PLUGIN_NAME = "homebridge-xiaomi-yeelight";
+export const PLUGIN_NAME = "homebridge-xiaomi-yeelight-x";
