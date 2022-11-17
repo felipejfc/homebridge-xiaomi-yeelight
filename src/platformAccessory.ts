@@ -1,7 +1,7 @@
-import { Service, PlatformAccessory, CharacteristicValue } from "homebridge";
+import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 
-import { XiaomiYeelightPlatform } from "./platform";
-import miio from "miio-yeelight-x";
+import { XiaomiYeelightPlatform } from './platform';
+import miio from 'miio-yeelight-x';
 
 /**
  * Platform Accessory
@@ -33,9 +33,9 @@ export class Light {
       })
       .then((device) => {
         this.connection = device;
-        this.platform.log.info("opened connection to device", device);
+        this.platform.log.info('opened connection to device', device);
 
-        if (this.connection.matches("cap:colorable", "cap:color:temperature")) {
+        if (this.connection.matches('cap:colorable', 'cap:color:temperature')) {
           this.service
             .getCharacteristic(this.platform.Characteristic.ColorTemperature)
             .setProps({
@@ -44,10 +44,10 @@ export class Light {
             })
             .onSet(this.setColorTemperature.bind(this));
 
-          this.connection.on("colorChanged", (colorTmp) => {
+          this.connection.on('colorChanged', (colorTmp) => {
             if (
-              colorTmp.model !== "temperature" &&
-              colorTmp.model !== "mired"
+              colorTmp.model !== 'temperature' &&
+              colorTmp.model !== 'mired'
             ) {
               return;
             }
@@ -60,7 +60,7 @@ export class Light {
           });
         }
 
-        if (this.connection.matches("cap:colorable", "cap:color:full")) {
+        if (this.connection.matches('cap:colorable', 'cap:color:full')) {
           this.service
             .getCharacteristic(this.platform.Characteristic.Hue)
             .onSet(this.setHue.bind(this));
@@ -69,8 +69,8 @@ export class Light {
             .getCharacteristic(this.platform.Characteristic.Saturation)
             .onSet(this.setSaturation.bind(this));
 
-          this.connection.on("colorChanged", (color) => {
-            if (color.model === "temperature" || color.model === "mired") {
+          this.connection.on('colorChanged', (color) => {
+            if (color.model === 'temperature' || color.model === 'mired') {
               return;
             }
 
@@ -78,19 +78,19 @@ export class Light {
           });
         }
 
-        if (this.connection.matches("cap:dimmable", "cap:brightness")) {
+        if (this.connection.matches('cap:dimmable', 'cap:brightness')) {
           this.service
             .getCharacteristic(this.platform.Characteristic.Brightness)
             .onSet(this.setBrightness.bind(this));
 
-          this.connection.on("brightnessChanged", (bright) =>
+          this.connection.on('brightnessChanged', (bright) =>
             this.service
               .getCharacteristic(this.platform.Characteristic.Brightness)
               .updateValue(bright)
           );
         }
 
-        this.connection.on("powerChanged", (power) =>
+        this.connection.on('powerChanged', (power) =>
           this.service
             .getCharacteristic(this.platform.Characteristic.On)
             .updateValue(power)
@@ -101,8 +101,8 @@ export class Light {
     // set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, "Xiaomi")
-      .setCharacteristic(this.platform.Characteristic.Model, "Yeelight");
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Xiaomi')
+      .setCharacteristic(this.platform.Characteristic.Model, 'Yeelight');
 
     this.service =
       this.accessory.getService(this.platform.Service.Lightbulb) ||
@@ -124,13 +124,13 @@ export class Light {
 
   async setOn(value: CharacteristicValue) {
     if (this.debugLogging) {
-      this.platform.log.info("setting power to", value);
+      this.platform.log.info('setting power to', value);
     }
 
     try {
       await this.connection.setPower(value);
       if (this.debugLogging) {
-        this.platform.log.info("power set successfully");
+        this.platform.log.info('power set successfully');
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -139,13 +139,13 @@ export class Light {
 
   async setBrightness(value: CharacteristicValue) {
     if (this.debugLogging) {
-      this.platform.log.info("setting brightness to", value);
+      this.platform.log.info('setting brightness to', value);
     }
 
     try {
       await this.connection.setBrightness(value);
       if (this.debugLogging) {
-        this.platform.log.info("brightness set successfully");
+        this.platform.log.info('brightness set successfully');
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -157,10 +157,10 @@ export class Light {
 
     if (this.debugLogging) {
       this.platform.log.info(
-        "setting color temp:",
-        "mired =",
+        'setting color temp:',
+        'mired =',
         value,
-        "kelvin =",
+        'kelvin =',
         kelvin
       );
     }
@@ -168,7 +168,7 @@ export class Light {
     try {
       await this.connection.color(kelvin);
       if (this.debugLogging) {
-        this.platform.log.info("color temp set successfully");
+        this.platform.log.info('color temp set successfully');
       }
     } catch (e: any) {
       this.platform.log.error(e);
@@ -179,7 +179,7 @@ export class Light {
     const oldHue = this.state.hue;
     this.state.hue = value as number;
     if (this.debugLogging) {
-      this.platform.log.info("setting hue to", value);
+      this.platform.log.info('setting hue to', value);
     }
 
     try {
@@ -188,7 +188,7 @@ export class Light {
       );
 
       if (this.debugLogging) {
-        this.platform.log.info("hue set successfully");
+        this.platform.log.info('hue set successfully');
       }
     } catch (e: any) {
       this.state.hue = oldHue;
@@ -200,7 +200,7 @@ export class Light {
     const oldSat = this.state.saturation;
     this.state.saturation = value as number;
     if (this.debugLogging) {
-      this.platform.log.info("setting saturation to", value);
+      this.platform.log.info('setting saturation to', value);
     }
 
     try {
@@ -209,7 +209,7 @@ export class Light {
       );
 
       if (this.debugLogging) {
-        this.platform.log.info("saturation set successfully");
+        this.platform.log.info('saturation set successfully');
       }
     } catch (e: any) {
       this.state.saturation = oldSat;
