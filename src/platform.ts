@@ -2,14 +2,13 @@ import {
   API,
   DynamicPlatformPlugin,
   Logger,
-  PlatformAccessory,
-  PlatformConfig,
   Service,
   Characteristic,
 } from 'homebridge';
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { Light } from './platformAccessory';
+import { MiLightPlatformAccesory, MiPlatformConfig } from './models';
 
 export class XiaomiYeelightPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
@@ -17,12 +16,12 @@ export class XiaomiYeelightPlatform implements DynamicPlatformPlugin {
     this.api.hap.Characteristic;
 
   // this is used to track restored cached accessories
-  public readonly accessories: PlatformAccessory[] = [];
+  public readonly accessories: MiLightPlatformAccesory[] = [];
 
   constructor(
     public readonly log: Logger,
-    public readonly config: PlatformConfig,
-    public readonly api: API
+    public readonly config: MiPlatformConfig,
+    public readonly api: API,
   ) {
     this.log.debug('Finished initializing platform:', this.config.name);
 
@@ -41,7 +40,7 @@ export class XiaomiYeelightPlatform implements DynamicPlatformPlugin {
    * This function is invoked when homebridge restores cached accessories from disk at startup.
    * It should be used to setup event handlers for characteristics and update respective values.
    */
-  configureAccessory(accessory: PlatformAccessory) {
+  configureAccessory(accessory: MiLightPlatformAccesory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
 
     // add the restored accessory to the accessories cache so we can track if it has already been registered
@@ -60,14 +59,14 @@ export class XiaomiYeelightPlatform implements DynamicPlatformPlugin {
     for (const light of addedLights) {
       const uuid = this.api.hap.uuid.generate(light.ipAddress);
       const existingAccessory = this.accessories.find(
-        (accessory) => accessory.UUID === uuid
+        (accessory) => accessory.UUID === uuid,
       );
 
       if (existingAccessory) {
         // the accessory already exists
         this.log.info(
           'Restoring existing accessory from cache:',
-          existingAccessory.displayName
+          existingAccessory.displayName,
         );
 
         existingAccessory.context.device = light;
@@ -78,7 +77,8 @@ export class XiaomiYeelightPlatform implements DynamicPlatformPlugin {
         this.log.info('Adding new accessory:', light.name);
 
         // create a new accessory
-        const accessory = new this.api.platformAccessory(light.name, uuid);
+        const accessory: MiLightPlatformAccesory =
+          new this.api.platformAccessory(light.name, uuid);
 
         // store a copy of the device object in the `accessory.context`
         // the `context` property can be used to store any data about the accessory you may need
