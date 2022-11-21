@@ -17,6 +17,7 @@ export interface LightCharacteristics {
   brightness?: Characteristic;
   hue?: Characteristic;
   sat?: Characteristic;
+  nightMode?: Characteristic;
 }
 
 export interface MiLightSettings {

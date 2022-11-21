@@ -1,5 +1,4 @@
-import { Characteristic, CharacteristicValue } from 'homebridge';
-
+import { CharacteristicValue } from 'homebridge';
 import { XiaomiYeelightPlatform } from './platform';
 import miio from 'miio-yeelight-x';
 import { color } from 'abstract-things/values';
@@ -12,6 +11,7 @@ import { LightCharacteristics, MiLightPlatformAccesory } from './models';
  */
 
 export class Light {
+  private lightCharacteristics: LightCharacteristics;
   private connection: miio;
 
   private state = {
@@ -24,9 +24,6 @@ export class Light {
     maxTemp: 370,
   };
 
-  private lightCharacteristics: LightCharacteristics;
-  private nightModeSwitchOn: Characteristic;
-
   constructor(
     private readonly platform: XiaomiYeelightPlatform,
     private readonly accessory: MiLightPlatformAccesory,
@@ -38,9 +35,23 @@ export class Light {
       })
       .then((device) => {
         this.connection = device;
+
+        const colorTempSupport = this.connection.matches(
+          'cap:colorable',
+          'cap:color:temperature',
+        );
+        const colorSupport = this.connection.matches(
+          'cap:colorable',
+          'cap:color:full',
+        );
+        const brightnessSupport = this.connection.matches(
+          'cap:dimmable',
+          'cap:brightness',
+        );
+
         this.platform.log.info('opened connection to device', device);
 
-        if (this.connection.matches('cap:colorable', 'cap:color:temperature')) {
+        if (colorTempSupport) {
           this.lightCharacteristics.colorTmp = service
             .getCharacteristic(this.platform.Characteristic.ColorTemperature)
             .setProps({
@@ -73,7 +84,7 @@ export class Light {
           });
         }
 
-        if (this.connection.matches('cap:colorable', 'cap:color:full')) {
+        if (colorSupport) {
           this.lightCharacteristics.hue = service
             .getCharacteristic(this.platform.Characteristic.Hue)
             .onSet(this.setHue.bind(this));
@@ -86,12 +97,19 @@ export class Light {
             if (color.model === 'temperature' || color.model === 'mired') {
               return;
             }
-
+            if (
+              this.lightCharacteristics.colorTmp &&
+              this.configs.minTemp !== this.lightCharacteristics.colorTmp?.value
+            ) {
+              this.lightCharacteristics.colorTmp.updateValue(
+                this.configs.minTemp,
+              );
+            }
             this.updateHueAndSaturation(color);
           });
         }
 
-        if (this.connection.matches('cap:dimmable', 'cap:brightness')) {
+        if (brightnessSupport) {
           this.lightCharacteristics.brightness = service
             .getCharacteristic(this.platform.Characteristic.Brightness)
             .onSet(this.setBrightness.bind(this));
@@ -138,14 +156,13 @@ export class Light {
       accessory.context.device.name,
     );
 
-    this.nightModeSwitchOn = nightModeSwitch
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.setNightMode.bind(this));
-
     this.lightCharacteristics = {
       power: service
         .getCharacteristic(this.platform.Characteristic.On)
         .onSet(this.setOn.bind(this)),
+      nightMode: nightModeSwitch
+        .getCharacteristic(this.platform.Characteristic.On)
+        .onSet(this.setNightMode.bind(this)),
     };
   }
 
@@ -161,8 +178,8 @@ export class Light {
     try {
       await this.connection.setPower(value);
 
-      if (!value && this.nightModeSwitchOn.value) {
-        this.nightModeSwitchOn.updateValue(false);
+      if (!value && this.lightCharacteristics.nightMode?.value) {
+        this.lightCharacteristics.nightMode.updateValue(false);
       }
       if (this.debugLogging) {
         this.platform.log.info('power set successfully');
@@ -179,8 +196,8 @@ export class Light {
 
     try {
       await this.connection.setBrightness(value);
-      if (this.nightModeSwitchOn.value) {
-        this.nightModeSwitchOn.updateValue(false);
+      if (this.lightCharacteristics.nightMode?.value) {
+        this.lightCharacteristics.nightMode.updateValue(false);
       }
       if (this.debugLogging) {
         this.platform.log.info('brightness set successfully');
@@ -205,8 +222,8 @@ export class Light {
 
     try {
       await this.connection.color(kelvin);
-      if (this.nightModeSwitchOn.value) {
-        this.nightModeSwitchOn.updateValue(false);
+      if (this.lightCharacteristics.nightMode?.value) {
+        this.lightCharacteristics.nightMode.updateValue(false);
       }
       if (this.debugLogging) {
         this.platform.log.info('color temp set successfully');
@@ -227,8 +244,8 @@ export class Light {
       await this.connection.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
-      if (this.nightModeSwitchOn.value) {
-        this.nightModeSwitchOn.updateValue(false);
+      if (this.lightCharacteristics.nightMode?.value) {
+        this.lightCharacteristics.nightMode.updateValue(false);
       }
       if (this.debugLogging) {
         this.platform.log.info('hue set successfully');
@@ -250,8 +267,8 @@ export class Light {
       await this.connection.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
-      if (this.nightModeSwitchOn.value) {
-        this.nightModeSwitchOn.updateValue(false);
+      if (this.lightCharacteristics.nightMode?.value) {
+        this.lightCharacteristics.nightMode.updateValue(false);
       }
       if (this.debugLogging) {
         this.platform.log.info('saturation set successfully');
@@ -268,10 +285,13 @@ export class Light {
       const nightLightColor = color.rgb(255, 152, 0);
 
       this.updateHueAndSaturation(nightLightColor);
-      this.lightCharacteristics.brightness!.updateValue(1);
+      this.lightCharacteristics.brightness?.updateValue(1);
       this.lightCharacteristics.power.updateValue(true);
     } else {
-      setTimeout(() => this.nightModeSwitchOn.updateValue(true), 0);
+      setTimeout(
+        () => this.lightCharacteristics.nightMode?.updateValue(true),
+        0,
+      );
     }
   }
 
