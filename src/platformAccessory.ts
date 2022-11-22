@@ -1,7 +1,6 @@
 import { CharacteristicValue } from 'homebridge';
 import { XiaomiYeelightPlatform } from './platform';
 import miio from 'miio-yeelight-x';
-import { color } from 'abstract-things/values';
 import { LightCharacteristics, MiLightPlatformAccesory } from './models';
 
 /**
@@ -49,6 +48,8 @@ export class Light {
           'cap:brightness',
         );
 
+        const nightmodeSupport = this.connection.matches('cap:miio:nightmode');
+
         this.platform.log.info('opened connection to device', device);
 
         if (colorTempSupport) {
@@ -73,10 +74,7 @@ export class Light {
               this.configs.maxTemp,
             );
 
-            if (
-              this.lightCharacteristics.colorTmp &&
-              tmp !== this.lightCharacteristics.colorTmp?.value
-            ) {
+            if (this.lightCharacteristics.colorTmp) {
               this.lightCharacteristics.colorTmp.updateValue(tmp);
 
               this.updateHueAndSaturation(colorTmp);
@@ -97,10 +95,7 @@ export class Light {
             if (color.model === 'temperature' || color.model === 'mired') {
               return;
             }
-            if (
-              this.lightCharacteristics.colorTmp &&
-              this.configs.minTemp !== this.lightCharacteristics.colorTmp?.value
-            ) {
+            if (this.lightCharacteristics.colorTmp) {
               this.lightCharacteristics.colorTmp.updateValue(
                 this.configs.minTemp,
               );
@@ -115,20 +110,36 @@ export class Light {
             .onSet(this.setBrightness.bind(this));
 
           this.connection.on('brightnessChanged', (bright) => {
-            if (
-              this.lightCharacteristics.brightness &&
-              bright !== this.lightCharacteristics.brightness?.value
-            ) {
+            if (this.lightCharacteristics.brightness) {
               this.lightCharacteristics.brightness.updateValue(bright);
             }
           });
         }
 
-        this.connection.on('powerChanged', (power) => {
-          if (power !== this.lightCharacteristics.power.value) {
-            this.lightCharacteristics.power.updateValue(power);
-          }
-        });
+        if (nightmodeSupport) {
+          const nightModeSwitch =
+            this.accessory.getService(
+              `${accessory.context.device.name} Night Mode`,
+            ) ||
+            this.accessory.addService(
+              this.platform.Service.Switch,
+              `${accessory.context.device.name} Night Mode`,
+            );
+
+          this.lightCharacteristics.nightMode = nightModeSwitch
+            .getCharacteristic(this.platform.Characteristic.On)
+            .onSet(this.setNightMode.bind(this));
+
+          this.connection.on('nightModeChanged', (x) => {
+            if (this.lightCharacteristics.nightMode) {
+              this.lightCharacteristics.nightMode.updateValue(x);
+            }
+          });
+        }
+
+        this.connection.on('powerChanged', (power) =>
+          this.lightCharacteristics.power.updateValue(power),
+        );
       })
       .catch((e) => this.platform.log.error(e));
 
@@ -142,15 +153,6 @@ export class Light {
       this.accessory.getService(this.platform.Service.Lightbulb) ||
       this.accessory.addService(this.platform.Service.Lightbulb);
 
-    const nightModeSwitch =
-      this.accessory.getService(
-        `${accessory.context.device.name} Night Mode`,
-      ) ||
-      this.accessory.addService(
-        this.platform.Service.Switch,
-        `${accessory.context.device.name} Night Mode`,
-      );
-
     service.setCharacteristic(
       this.platform.Characteristic.Name,
       accessory.context.device.name,
@@ -160,9 +162,6 @@ export class Light {
       power: service
         .getCharacteristic(this.platform.Characteristic.On)
         .onSet(this.setOn.bind(this)),
-      nightMode: nightModeSwitch
-        .getCharacteristic(this.platform.Characteristic.On)
-        .onSet(this.setNightMode.bind(this)),
     };
   }
 
@@ -178,9 +177,6 @@ export class Light {
     try {
       await this.connection.setPower(value);
 
-      if (!value && this.lightCharacteristics.nightMode?.value) {
-        this.lightCharacteristics.nightMode.updateValue(false);
-      }
       if (this.debugLogging) {
         this.platform.log.info('power set successfully');
       }
@@ -196,9 +192,7 @@ export class Light {
 
     try {
       await this.connection.setBrightness(value);
-      if (this.lightCharacteristics.nightMode?.value) {
-        this.lightCharacteristics.nightMode.updateValue(false);
-      }
+
       if (this.debugLogging) {
         this.platform.log.info('brightness set successfully');
       }
@@ -222,9 +216,6 @@ export class Light {
 
     try {
       await this.connection.color(kelvin);
-      if (this.lightCharacteristics.nightMode?.value) {
-        this.lightCharacteristics.nightMode.updateValue(false);
-      }
       if (this.debugLogging) {
         this.platform.log.info('color temp set successfully');
       }
@@ -244,9 +235,6 @@ export class Light {
       await this.connection.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
-      if (this.lightCharacteristics.nightMode?.value) {
-        this.lightCharacteristics.nightMode.updateValue(false);
-      }
       if (this.debugLogging) {
         this.platform.log.info('hue set successfully');
       }
@@ -267,9 +255,6 @@ export class Light {
       await this.connection.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
-      if (this.lightCharacteristics.nightMode?.value) {
-        this.lightCharacteristics.nightMode.updateValue(false);
-      }
       if (this.debugLogging) {
         this.platform.log.info('saturation set successfully');
       }
@@ -281,12 +266,7 @@ export class Light {
 
   async setNightMode(value: CharacteristicValue) {
     if (value) {
-      await this.connection.call('set_scene', ['nightlight', 10]);
-      const nightLightColor = color.rgb(255, 152, 0);
-
-      this.updateHueAndSaturation(nightLightColor);
-      this.lightCharacteristics.brightness?.updateValue(1);
-      this.lightCharacteristics.power.updateValue(true);
+      await this.connection.nightMode(1);
     } else {
       setTimeout(
         () => this.lightCharacteristics.nightMode?.updateValue(true),
@@ -323,21 +303,15 @@ export class Light {
     }
   }
 
-  private updateHueAndSaturation(color: color) {
+  private updateHueAndSaturation(color) {
     color = color.hsv;
 
-    if (
-      this.lightCharacteristics.hue &&
-      color.hue !== this.lightCharacteristics.hue?.value
-    ) {
+    if (this.lightCharacteristics.hue) {
       this.state.hue = color.hue;
       this.lightCharacteristics.hue.updateValue(color.hue);
     }
 
-    if (
-      this.lightCharacteristics.sat &&
-      color.hue !== this.lightCharacteristics.sat?.value
-    ) {
+    if (this.lightCharacteristics.sat) {
       this.state.saturation = color.saturation;
       this.lightCharacteristics.sat.updateValue(color.saturation);
     }

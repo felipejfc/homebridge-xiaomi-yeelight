@@ -1,7 +1,7 @@
 <h1 align="center">💡 homebridge-xiaomi-yeelight 💡</h1>
 <p>
-  <a href="https://www.npmjs.com/package/homebridge-xiaomi-yeelight" target="_blank">
-    <img alt="Version" src="https://img.shields.io/npm/v/homebridge-xiaomi-yeelight.svg">
+  <a href="https://www.npmjs.com/package/homebridge-xiaomi-yeelight-x" target="_blank">
+    <img alt="Version" src="https://img.shields.io/npm/v/homebridge-xiaomi-yeelight-x.svg">
   </a>
   <a href="#" target="_blank">
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg" />
