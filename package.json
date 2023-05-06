@@ -1,7 +1,7 @@
 {
   "displayName": "Xiaomi Yeelight Support",
-  "name": "@svyatogor/homebridge-xiaomi-yeelight-x",
-  "version": "1.3.0",
+  "name": "@felipejfc/homebridge-xiaomi-yeelight-x",
+  "version": "2.0.0",
   "description": "Control Xiaomi branded Yeelight in HomeBridge",
   "license": "Apache-2.0",
   "repository": {
@@ -26,7 +26,7 @@
     "homebridge-plugin"
   ],
   "dependencies": {
-    "@svyatogor/miio-yeelight-x": "^0.17.0"
+    "mijia-io": "^0.17.0"
   },
   "devDependencies": {
     "@types/node": "^16.10.9",
