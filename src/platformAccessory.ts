@@ -1,6 +1,6 @@
 import { CharacteristicValue, Service } from 'homebridge';
 import { XiaomiYeelightPlatform } from './platform';
-import miio from 'mijia-io';
+import miio from '@felipejfc/mijia-io';
 import { LightCharacteristics, MiLightPlatformAccesory } from './models';
 
 /**
