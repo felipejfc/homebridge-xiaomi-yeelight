@@ -204,7 +204,8 @@ export class Light {
     }
 
     try {
-      await this.getDevice().setPower(value);
+      let device = await this.getDevice();
+      await device.setPower(value);
 
       if (this.debugLogging) {
         this.platform.log.info('power set successfully');
@@ -220,7 +221,8 @@ export class Light {
     }
 
     try {
-      await this.getDevice().setBrightness(value);
+      let device = await this.getDevice();
+      await device.setBrightness(value);
 
       if (this.debugLogging) {
         this.platform.log.info('brightness set successfully');
@@ -244,7 +246,8 @@ export class Light {
     }
 
     try {
-      await this.getDevice().color(kelvin);
+      let device = await this.getDevice();
+      await device.color(kelvin);
       if (this.debugLogging) {
         this.platform.log.info('color temp set successfully');
       }
@@ -261,7 +264,8 @@ export class Light {
     }
 
     try {
-      await this.getDevice().color(
+      let device = await this.getDevice();
+      await device.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
       if (this.debugLogging) {
@@ -281,7 +285,8 @@ export class Light {
     }
 
     try {
-      await this.getDevice().color(
+      let device = await this.getDevice();
+      await device.color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
       if (this.debugLogging) {
@@ -294,10 +299,11 @@ export class Light {
   }
 
   async setMoonLight(value: CharacteristicValue) {
+    let device = await this.getDevice();
     if (value) {
-      await this.getDevice().changeMode('moonlight')
+      await device.changeMode('moonlight')
     } else {
-      await this.getDevice().setPower(false)
+      await device.setPower(false)
     }
   }
 
@@ -308,10 +314,11 @@ export class Light {
 
   async startColorFlow() {
     try {
-      const props = await this.getDevice().loadProperties(['flowing']);
+      let device = await this.getDevice();
+      const props = await device.loadProperties(['flowing']);
 
       if (props.flowing === '1') {
-        await this.getDevice().call('stop_cf');
+        await device.call('stop_cf');
         return;
       }
 
@@ -328,7 +335,7 @@ export class Light {
 
       const tuples = colors.map((color) => `2250,1,${color},100`);
 
-      await this.getDevice().call('set_scene', ['cf', 0, 0, tuples.join(', ')]);
+      await device.call('set_scene', ['cf', 0, 0, tuples.join(', ')]);
     } catch (e: any) {
       this.platform.log.error(e);
     }
