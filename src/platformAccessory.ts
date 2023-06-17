@@ -26,11 +26,11 @@ export class Light {
   };
 
   constructor(
-    private readonly platform: XiaomiYeelightPlatform,
-    private readonly accessory: MiLightPlatformAccesory,
+    private readonly p: XiaomiYeelightPlatform,
+    private readonly a: MiLightPlatformAccesory,
   ) {
-    this.platform = platform;
-    this.accessory = accessory;
+    this.platform = p;
+    this.accessory = a;
 
     // set accessory information
     this.accessory
@@ -44,7 +44,7 @@ export class Light {
 
     service.setCharacteristic(
       this.platform.Characteristic.Name,
-      accessory.context.device.name,
+      this.accessory.context.device.name,
     );
 
     this.lightCharacteristics = {
@@ -55,6 +55,10 @@ export class Light {
   }
 
   createDevice(){
+    const service =
+      this.accessory.getService(this.platform.Service.Lightbulb) ||
+      this.accessory.addService(this.platform.Service.Lightbulb);
+
     miio
       .device({
         address: this.accessory.context.device.ipAddress,
@@ -147,12 +151,12 @@ export class Light {
         if (nightmodeSupport) {
           const moonlight =
             this.accessory.getService(
-              `${accessory.context.device.name} Moonlight`,
+              `${this.accessory.context.device.name} Moonlight`,
             ) ||
             this.accessory.addService(
               this.platform.Service.Lightbulb,
-              `${accessory.context.device.name} Moonlight`,
-              accessory.UUID,
+              `${this.accessory.context.device.name} Moonlight`,
+              this.accessory.UUID,
               'moonlight'
             );
 
@@ -182,7 +186,7 @@ export class Light {
 
   getDevice(){
     if (!this.connection){
-      createDevice();
+      this.createDevice();
     }
     return this.connection;
   } 
