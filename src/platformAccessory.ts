@@ -12,6 +12,8 @@ import { LightCharacteristics, MiLightPlatformAccesory } from './models';
 export class Light {
   private lightCharacteristics: LightCharacteristics;
   private connection: miio;
+  private platform: XiaomiYeelightPlatform;
+  private accessory: MiLightPlatformAccesory;
 
   private state = {
     hue: 0,
@@ -27,10 +29,36 @@ export class Light {
     private readonly platform: XiaomiYeelightPlatform,
     private readonly accessory: MiLightPlatformAccesory,
   ) {
+    this.platform = platform;
+    this.accessory = accessory;
+
+    // set accessory information
+    this.accessory
+      .getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Xiaomi')
+      .setCharacteristic(this.platform.Characteristic.Model, 'Yeelight');
+
+    const service =
+      this.accessory.getService(this.platform.Service.Lightbulb) ||
+      this.accessory.addService(this.platform.Service.Lightbulb);
+
+    service.setCharacteristic(
+      this.platform.Characteristic.Name,
+      accessory.context.device.name,
+    );
+
+    this.lightCharacteristics = {
+      power: service
+        .getCharacteristic(this.platform.Characteristic.On)
+        .onSet(this.setOn.bind(this)),
+    };
+  }
+
+  createDevice(){
     miio
       .device({
-        address: accessory.context.device.ipAddress,
-        token: accessory.context.device.token,
+        address: this.accessory.context.device.ipAddress,
+        token: this.accessory.context.device.token,
       })
       .then((device) => {
         this.connection = device;
@@ -150,28 +178,14 @@ export class Light {
         });
       })
       .catch((e) => this.platform.log.error(e));
-
-    // set accessory information
-    this.accessory
-      .getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Xiaomi')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Yeelight');
-
-    const service =
-      this.accessory.getService(this.platform.Service.Lightbulb) ||
-      this.accessory.addService(this.platform.Service.Lightbulb);
-
-    service.setCharacteristic(
-      this.platform.Characteristic.Name,
-      accessory.context.device.name,
-    );
-
-    this.lightCharacteristics = {
-      power: service
-        .getCharacteristic(this.platform.Characteristic.On)
-        .onSet(this.setOn.bind(this)),
-    };
   }
+
+  getDevice(){
+    if (!this.connection){
+      createDevice();
+    }
+    return this.connection;
+  } 
 
   get debugLogging(): boolean {
     return this.platform.config.debugLogging;
@@ -183,7 +197,7 @@ export class Light {
     }
 
     try {
-      await this.connection.setPower(value);
+      await this.getDevice().setPower(value);
 
       if (this.debugLogging) {
         this.platform.log.info('power set successfully');
@@ -199,7 +213,7 @@ export class Light {
     }
 
     try {
-      await this.connection.setBrightness(value);
+      await this.getDevice().setBrightness(value);
 
       if (this.debugLogging) {
         this.platform.log.info('brightness set successfully');
@@ -223,7 +237,7 @@ export class Light {
     }
 
     try {
-      await this.connection.color(kelvin);
+      await this.getDevice().color(kelvin);
       if (this.debugLogging) {
         this.platform.log.info('color temp set successfully');
       }
@@ -240,7 +254,7 @@ export class Light {
     }
 
     try {
-      await this.connection.color(
+      await this.getDevice().color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
       if (this.debugLogging) {
@@ -260,7 +274,7 @@ export class Light {
     }
 
     try {
-      await this.connection.color(
+      await this.getDevice().color(
         `hsl(${this.state.hue}, ${this.state.saturation}%, 100%)`,
       );
       if (this.debugLogging) {
@@ -274,9 +288,9 @@ export class Light {
 
   async setMoonLight(value: CharacteristicValue) {
     if (value) {
-      await this.connection.changeMode('moonlight')
+      await this.getDevice().changeMode('moonlight')
     } else {
-      await this.connection.setPower(false)
+      await this.getDevice().setPower(false)
     }
   }
 
@@ -287,10 +301,10 @@ export class Light {
 
   async startColorFlow() {
     try {
-      const props = await this.connection.loadProperties(['flowing']);
+      const props = await this.getDevice().loadProperties(['flowing']);
 
       if (props.flowing === '1') {
-        await this.connection.call('stop_cf');
+        await this.getDevice().call('stop_cf');
         return;
       }
 
@@ -307,7 +321,7 @@ export class Light {
 
       const tuples = colors.map((color) => `2250,1,${color},100`);
 
-      await this.connection.call('set_scene', ['cf', 0, 0, tuples.join(', ')]);
+      await this.getDevice().call('set_scene', ['cf', 0, 0, tuples.join(', ')]);
     } catch (e: any) {
       this.platform.log.error(e);
     }
