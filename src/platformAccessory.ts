@@ -54,139 +54,142 @@ export class Light {
     };
   }
 
-  createDevice(){
+  async createDevice(){
     const service =
       this.accessory.getService(this.platform.Service.Lightbulb) ||
       this.accessory.addService(this.platform.Service.Lightbulb);
+    return new Promise((resolve, reject) => {
+      miio
+        .device({
+          address: this.accessory.context.device.ipAddress,
+          token: this.accessory.context.device.token,
+        })
+        .then((device) => {
+          this.connection = device;
 
-    miio
-      .device({
-        address: this.accessory.context.device.ipAddress,
-        token: this.accessory.context.device.token,
-      })
-      .then((device) => {
-        this.connection = device;
+          const colorTempSupport = this.connection.matches(
+            'cap:colorable',
+            'cap:color:temperature',
+          );
+          const colorSupport = this.connection.matches(
+            'cap:colorable',
+            'cap:color:full',
+          );
+          const brightnessSupport = this.connection.matches(
+            'cap:dimmable',
+            'cap:brightness',
+          );
 
-        const colorTempSupport = this.connection.matches(
-          'cap:colorable',
-          'cap:color:temperature',
-        );
-        const colorSupport = this.connection.matches(
-          'cap:colorable',
-          'cap:color:full',
-        );
-        const brightnessSupport = this.connection.matches(
-          'cap:dimmable',
-          'cap:brightness',
-        );
+          const nightmodeSupport = this.connection.matches('cap:miio:nightmode');
 
-        const nightmodeSupport = this.connection.matches('cap:miio:nightmode');
+          this.platform.log.info('opened connection to device', device);
 
-        this.platform.log.info('opened connection to device', device);
+          if (colorTempSupport) {
+            this.lightCharacteristics.colorTmp = service
+              .getCharacteristic(this.platform.Characteristic.ColorTemperature)
+              .setProps({
+                maxValue: this.configs.maxTemp,
+                minValue: this.configs.minTemp,
+              })
+              .onSet(this.setColorTemperature.bind(this));
 
-        if (colorTempSupport) {
-          this.lightCharacteristics.colorTmp = service
-            .getCharacteristic(this.platform.Characteristic.ColorTemperature)
-            .setProps({
-              maxValue: this.configs.maxTemp,
-              minValue: this.configs.minTemp,
-            })
-            .onSet(this.setColorTemperature.bind(this));
+            this.connection.on('colorChanged', (colorTmp) => {
+              if (
+                colorTmp.model !== 'temperature' &&
+                colorTmp.model !== 'mired'
+              ) {
+                return;
+              }
 
-          this.connection.on('colorChanged', (colorTmp) => {
-            if (
-              colorTmp.model !== 'temperature' &&
-              colorTmp.model !== 'mired'
-            ) {
-              return;
-            }
-
-            const tmp = Math.min(
-              Math.max(colorTmp.mired.value, this.configs.minTemp),
-              this.configs.maxTemp,
-            );
-
-            if (this.lightCharacteristics.colorTmp) {
-              this.lightCharacteristics.colorTmp.updateValue(tmp);
-
-              this.updateHueAndSaturation(colorTmp);
-            }
-          });
-        }
-
-        if (colorSupport) {
-          this.lightCharacteristics.hue = service
-            .getCharacteristic(this.platform.Characteristic.Hue)
-            .onSet(this.setHue.bind(this));
-
-          this.lightCharacteristics.sat = service
-            .getCharacteristic(this.platform.Characteristic.Saturation)
-            .onSet(this.setSaturation.bind(this));
-
-          this.connection.on('colorChanged', (color) => {
-            if (color.model === 'temperature' || color.model === 'mired') {
-              return;
-            }
-            if (this.lightCharacteristics.colorTmp) {
-              this.lightCharacteristics.colorTmp.updateValue(
-                this.configs.minTemp,
+              const tmp = Math.min(
+                Math.max(colorTmp.mired.value, this.configs.minTemp),
+                this.configs.maxTemp,
               );
-            }
-            this.updateHueAndSaturation(color);
+
+              if (this.lightCharacteristics.colorTmp) {
+                this.lightCharacteristics.colorTmp.updateValue(tmp);
+
+                this.updateHueAndSaturation(colorTmp);
+              }
+            });
+          }
+
+          if (colorSupport) {
+            this.lightCharacteristics.hue = service
+              .getCharacteristic(this.platform.Characteristic.Hue)
+              .onSet(this.setHue.bind(this));
+
+            this.lightCharacteristics.sat = service
+              .getCharacteristic(this.platform.Characteristic.Saturation)
+              .onSet(this.setSaturation.bind(this));
+
+            this.connection.on('colorChanged', (color) => {
+              if (color.model === 'temperature' || color.model === 'mired') {
+                return;
+              }
+              if (this.lightCharacteristics.colorTmp) {
+                this.lightCharacteristics.colorTmp.updateValue(
+                  this.configs.minTemp,
+                );
+              }
+              this.updateHueAndSaturation(color);
+            });
+          }
+
+          if (brightnessSupport) {
+            this.lightCharacteristics.brightness = service
+              .getCharacteristic(this.platform.Characteristic.Brightness)
+              .onSet(this.setBrightness.bind(this));
+
+            this.connection.on('brightnessChanged', (bright) => {
+              if (this.lightCharacteristics.brightness) {
+                this.lightCharacteristics.brightness.updateValue(bright);
+              }
+            });
+          }
+
+          if (nightmodeSupport) {
+            const moonlight =
+              this.accessory.getService(
+                `${this.accessory.context.device.name} Moonlight`,
+              ) ||
+              this.accessory.addService(
+                this.platform.Service.Lightbulb,
+                `${this.accessory.context.device.name} Moonlight`,
+                this.accessory.UUID,
+                'moonlight'
+              );
+
+            this.lightCharacteristics.moonlight = moonlight
+              .getCharacteristic(this.platform.Characteristic.On)
+              .onSet(this.setMoonLight.bind(this));
+
+            this.lightCharacteristics.moonlightBrightness = moonlight
+              .getCharacteristic(this.platform.Characteristic.Brightness)
+              .onSet(this.setMoonLightBrightness.bind(this));
+
+            this.connection.on('modeChanged', (mode) => {
+              this.lightCharacteristics.moonlight?.updateValue(mode === 'moonlight');
+            });
+
+            this.connection.on('updateMoonlightBrightness', (bright) => {
+              this.lightCharacteristics.moonlightBrightness?.updateValue(bright);
+            });   
+          }
+
+          this.connection.on('powerChanged', (power) => {
+            this.lightCharacteristics.power.updateValue(power)
           });
-        }
-
-        if (brightnessSupport) {
-          this.lightCharacteristics.brightness = service
-            .getCharacteristic(this.platform.Characteristic.Brightness)
-            .onSet(this.setBrightness.bind(this));
-
-          this.connection.on('brightnessChanged', (bright) => {
-            if (this.lightCharacteristics.brightness) {
-              this.lightCharacteristics.brightness.updateValue(bright);
-            }
-          });
-        }
-
-        if (nightmodeSupport) {
-          const moonlight =
-            this.accessory.getService(
-              `${this.accessory.context.device.name} Moonlight`,
-            ) ||
-            this.accessory.addService(
-              this.platform.Service.Lightbulb,
-              `${this.accessory.context.device.name} Moonlight`,
-              this.accessory.UUID,
-              'moonlight'
-            );
-
-          this.lightCharacteristics.moonlight = moonlight
-            .getCharacteristic(this.platform.Characteristic.On)
-            .onSet(this.setMoonLight.bind(this));
-
-          this.lightCharacteristics.moonlightBrightness = moonlight
-            .getCharacteristic(this.platform.Characteristic.Brightness)
-            .onSet(this.setMoonLightBrightness.bind(this));
-
-          this.connection.on('modeChanged', (mode) => {
-            this.lightCharacteristics.moonlight?.updateValue(mode === 'moonlight');
-          });
-
-          this.connection.on('updateMoonlightBrightness', (bright) => {
-            this.lightCharacteristics.moonlightBrightness?.updateValue(bright);
-          });
-        }
-
-        this.connection.on('powerChanged', (power) => {
-          this.lightCharacteristics.power.updateValue(power)
-        });
-      })
-      .catch((e) => this.platform.log.error(e));
+          
+          resolve(this.connection);
+        })
+        .catch((e) => this.platform.log.error(e));
+      });
   }
 
-  getDevice(){
-    if (!this.connection){
-      this.createDevice();
+  async getDevice() {
+    if (!this.connection) {
+      await this.createDevice();
     }
     return this.connection;
   } 
